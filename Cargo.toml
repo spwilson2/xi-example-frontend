@@ -1,0 +1,30 @@
+[package]
+name = "xi-example-cli"
+version = "0.1.0"
+authors = ["Sean Wilson <sean.wilson@ghs.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = "1.0.89"
+serde_derive = "1.0"
+serde_json = "1.0"
+fern = "0.5.9"
+log = "0.4.6"
+chrono = "0.4.6"
+termion = "1.5.1"
+
+[dependencies.xi-core-lib]
+branch = "master"
+git = "https://github.com/xi-editor/xi-editor"
+
+[dependencies.xi-rpc]
+branch = "master"
+git = "https://github.com/xi-editor/xi-editor"
+
+[dependencies.xi-trace]
+branch = "master"
+git = "https://github.com/xi-editor/xi-editor"
+features = ["chrome_trace_event"]
+optional = true
