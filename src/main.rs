@@ -30,15 +30,6 @@ trait Widget {
 }
 
 
-/// This struct manages the logic for using a terminal to:
-/// - Receive keyboard input
-/// - Draw windows
-/// - Detect resize events
-struct TermController {
-  controller: TermSizeController,
-  input_reader: TermInputReader,
-}
-
 
 //
 struct WindowWidget {

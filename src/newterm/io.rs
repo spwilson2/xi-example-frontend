@@ -9,7 +9,7 @@ use tokio::sync::{Mutex, Semaphore, SemaphorePermit};
 /// This controller manages detection of the terminal screen size.
 /// Screen size of terminals can be difficult to maintain. It may require
 /// asynchronous messages.
-struct TermSizeController {
+pub struct TermSizeController {
   // Last pervious known size
   size: Arc<Mutex<(usize, usize)>>, // Width, Height
 
@@ -35,7 +35,7 @@ fn handle_escape(size: &mut (usize,usize), es: &str) {
 /// Screen size of terminals can be difficult to maintain. It may require
 /// asynchronous messages.
 impl TermSizeController {
-  pub fn new(writer: TermWriteMux, receiver: &TermInputReader) -> Self {
+  pub fn new<R: AsyncRead>(writer: TermWriteMux, receiver: &TermInputReader<R>) -> Self {
     Self {
       size: Arc::from(Mutex::new((0,0))),
       term_writer: writer,
@@ -78,15 +78,15 @@ pub enum TermInputValue {
 
 /// TermInputReader reads from the terminal input stream and translates the
 /// results into different events 
-pub struct TermInputReader<'a> {
-  term_reader: &'a dyn AsyncRead,
+pub struct TermInputReader<R : AsyncRead> {
+  term_reader: R,
 
   escape_chan: (broadcast::Sender::<escapeSequence>, escapeSequenceReceiver),
   text_chan: (broadcast::Sender::<String>, broadcast::Receiver::<String>),
 }
 
-impl<'a> TermInputReader<'a> {
-  pub fn new(mut reader: &'a dyn AsyncRead) -> Self {
+impl<R: AsyncRead> TermInputReader<R> {
+  pub fn new(mut reader: R) -> Self {
     Self {
       term_reader: reader,
       escape_chan: broadcast::channel(10),
@@ -105,17 +105,30 @@ const TERM_WRITER_PERMITS: usize = 4;
 ///
 /// This is necessary because multiple writers will be required to 
 /// do things like asynchronous redraw detection
-struct TermWriteMux {
-  writer: Stdout,
+pub struct TermWriteMux {
+  //writer: Stdout,
   // Reader/writer semaphore
-  sem: Semaphore,
+  callback: &'static dyn Fn() -> Stdout,
+  writer: Stdout,
+  sem: Arc<Semaphore>,
+}
+
+impl Clone for TermWriteMux {
+  fn clone(&self) -> Self {
+    Self {
+      sem: self.sem.clone(),
+      writer: (self.callback)(),
+      callback: self.callback,
+    }
+  }
 }
 
 impl TermWriteMux {
-  pub fn new(writer: Stdout) -> Self {
+  pub fn new(cb: &'static dyn Fn() -> Stdout) -> Self {
     Self {
-      writer: writer,
-      sem: Semaphore::new(TERM_WRITER_PERMITS),
+      callback: cb,
+      writer: cb(),
+      sem: Arc::from(Semaphore::new(TERM_WRITER_PERMITS)),
     }
   }
 
