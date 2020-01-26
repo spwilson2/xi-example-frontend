@@ -4,7 +4,10 @@ use tokio::io::{AsyncRead, AsyncWrite, Stdout};
 
 use tokio::prelude::*;
 use tokio::sync::broadcast;
-use tokio::sync::{Mutex, Semaphore, SemaphorePermit};
+//use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::sync::{RwLock, Mutex, MutexGuard, RwLockWriteGuard, Semaphore, SemaphorePermit};
+
+use std::cell::UnsafeCell;
 
 /// This controller manages detection of the terminal screen size.
 /// Screen size of terminals can be difficult to maintain. It may require
@@ -14,7 +17,7 @@ pub struct TermSizeController {
   size: Arc<Mutex<(usize, usize)>>, // Width, Height
 
   // Write to the terminal to send messages requesting the size of the terminal
-  term_writer: TermWriteMux,
+  term_writer: WriteMux<Stdout>,
 
   // Notification/Read access to the terminal for resize responses
   escape_receiver: Option<escapeSequenceReceiver>,
@@ -35,7 +38,7 @@ fn handle_escape(size: &mut (usize,usize), es: &str) {
 /// Screen size of terminals can be difficult to maintain. It may require
 /// asynchronous messages.
 impl TermSizeController {
-  pub fn new<R: AsyncRead>(writer: TermWriteMux, receiver: &TermInputReader<R>) -> Self {
+  pub fn new<R: AsyncRead>(writer: WriteMux<Stdout>, receiver: &TermInputReader<R>) -> Self {
     Self {
       size: Arc::from(Mutex::new((0,0))),
       term_writer: writer,
@@ -64,7 +67,7 @@ impl TermSizeController {
   }
 
   async fn tick(&mut self) {
-    self.term_writer.write_stdout(RESIZE_ESCAPE_REQ.as_bytes()).await.unwrap();
+    self.term_writer.write(RESIZE_ESCAPE_REQ.as_bytes()).await.unwrap();
   }
 }
 
@@ -86,7 +89,7 @@ pub struct TermInputReader<R : AsyncRead> {
 }
 
 impl<R: AsyncRead> TermInputReader<R> {
-  pub fn new(mut reader: R) -> Self {
+  pub fn new(reader: R) -> Self {
     Self {
       term_reader: reader,
       escape_chan: broadcast::channel(10),
@@ -99,49 +102,92 @@ impl<R: AsyncRead> TermInputReader<R> {
   }
 }
 
-const TERM_WRITER_PERMITS: usize = 4;
-
-/// This struct handles multiplexing of writes to the terminal
-///
-/// This is necessary because multiple writers will be required to 
-/// do things like asynchronous redraw detection
-pub struct TermWriteMux {
-  //writer: Stdout,
-  // Reader/writer semaphore
-  callback: &'static dyn Fn() -> Stdout,
-  writer: Stdout,
-  sem: Arc<Semaphore>,
+struct WriteMuxState<W: AsyncWrite + Unpin> {
+  writer: UnsafeCell<W>,
+  exclusive_lock: Semaphore,
 }
 
-impl Clone for TermWriteMux {
+pub struct WriteMux<W: AsyncWrite + Unpin> {
+  state: Arc<WriteMuxState<W>>,
+}
+
+impl<W: AsyncWrite + Unpin> Clone for WriteMux<W> {
   fn clone(&self) -> Self {
     Self {
-      sem: self.sem.clone(),
-      writer: (self.callback)(),
-      callback: self.callback,
+      state: self.state.clone(),
     }
   }
 }
 
-impl TermWriteMux {
-  pub fn new(cb: &'static dyn Fn() -> Stdout) -> Self {
+impl<W: AsyncWrite + Unpin> WriteMuxState<W> {
+  fn new(writer: W) -> Self {
     Self {
-      callback: cb,
-      writer: cb(),
-      sem: Arc::from(Semaphore::new(TERM_WRITER_PERMITS)),
+      writer: std::cell::UnsafeCell::from(writer),
+      exclusive_lock: Semaphore::new(1),
+    }
+  }
+}
+
+impl<W: AsyncWrite + Unpin> WriteMux<W> {
+  pub fn new(writer: W) -> Self {
+    Self {
+      state: Arc::from(WriteMuxState::new(writer))
+    }
+  }
+  pub async fn write(&self, buf: &[u8]) -> Result<usize, std::io::Error> {
+    let _l = self.state.exclusive_lock.acquire().await;
+    // NOTE: This method is safe because we only allow access either with ALL
+    // reader semaphors (in the case of acquire) or the exclusive lock
+    // semaphore (in the case of this call).
+    let ret;
+    unsafe {
+      ret = self.write_unlocked(buf).await;
+    }
+    drop(_l);
+    ret
+  }
+
+  pub async fn flush(&self) -> Result<(), std::io::Error> {
+    let _l = self.state.exclusive_lock.acquire().await;
+    let ret;
+    unsafe {
+      ret = self.flush_unlocked().await;
+    }
+    drop(_l);
+    ret
+  }
+
+  pub(self) async unsafe fn flush_unlocked(&self) -> Result<(), std::io::Error> {
+      (*self.state.writer.get()).flush().await
+  }
+
+  pub(self) async unsafe fn write_unlocked(&self, buf: &[u8]) -> Result<usize, std::io::Error> {
+      (*self.state.writer.get()).write(buf).await
+  }
+
+  pub async fn acquire<'a>(&'a self) -> WriteMuxGuard<'a, W> {
+    WriteMuxGuard::<'a, W> {
+      state: self,
+      _permit: self.state.exclusive_lock.acquire().await,
+    }
+  }
+}
+
+pub struct WriteMuxGuard<'a, W: AsyncWrite + Unpin> {
+  state: &'a WriteMux<W>,
+  _permit: SemaphorePermit<'a>,
+}
+
+impl<'a, W: AsyncWrite + Unpin> WriteMuxGuard<'a, W> {
+  pub async fn write(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
+    unsafe {
+      self.state.write_unlocked(buf).await
     }
   }
 
-  pub async fn write_stdout(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
-    let _p = self.sem.acquire().await;
-    self.writer.write(buf).await
-  }
-
-  pub async fn write_stdout_exclusive(&mut self, buf: &[u8]) -> Result<usize, std::io::Error> {
-    let mut permits: [Option<SemaphorePermit>; TERM_WRITER_PERMITS] = Default::default();
-    for permit in permits.iter_mut() {
-      *permit = Some(self.sem.acquire().await);
+  pub async fn flush(&mut self) -> Result<(), std::io::Error> {
+    unsafe {
+      self.state.flush_unlocked().await
     }
-    self.writer.write(buf).await
   }
 }

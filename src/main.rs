@@ -1,8 +1,11 @@
 extern crate termion;
+#[macro_use]
+extern crate pin_project_lite;
 
 mod term;
 mod newterm;
 use term::Layout;
+use tokio::io::{stdout, stdin};
 
 // Window:
 //  - Widget
@@ -53,7 +56,8 @@ fn main() {
 
   // Initialize core runner
 
-  let l = term::layout::TermionLayout::new();
-  let v = l.create_view_window();
-  v.refresh();
+  //let l = term::layout::TermionLayout::new();
+  //let v = l.create_view_window();
+  //v.refresh();
+  let c = newterm::TermController::new();
 }

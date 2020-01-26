@@ -7,3 +7,12 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+pin-project-lite = "0.1.4"
+
+[dependencies.termion]
+version = "1.5.4"
+git = "https://github.com/spwilson2/termion"
+
+[dependencies.tokio]
+version = "0.2.9"
+features = ["full"]
