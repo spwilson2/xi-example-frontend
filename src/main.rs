@@ -1,11 +1,29 @@
+#![allow(
+    dead_code, 
+    unused_imports,
+    unused_variables,
+    )]
+
 extern crate termion;
+extern crate tokio;
+extern crate futures;
+extern crate libc;
 #[macro_use]
-extern crate pin_project_lite;
+extern crate failure;
+
+#[macro_export]
+macro_rules! cast_err {
+    ($e:expr) => {
+        match $e {
+            Ok(_ok) => Ok(_ok),
+            Err(_fail) => Err(Error::from(_fail)),
+        }
+    }
+}
 
 mod term;
-mod newterm;
-use term::Layout;
-use tokio::io::{stdout, stdin};
+mod future;
+
 
 // Window:
 //  - Widget
@@ -38,7 +56,8 @@ trait Widget {
 struct WindowWidget {
 }
 
-impl Widget {
+impl Widget for WindowWidget {
+  fn redraw(&mut self, dims: &(usize, usize)) {todo!()}  // TODO Buffer param
 }
 
 struct LayoutWidget {
@@ -50,14 +69,7 @@ struct TextViewWidget {
 
 // Note, To be able to get a cached view of the xi main we'll probably register
 // ourself as a plugin, that or create our own version of the cache.
-
 fn main() {
 
-
-  // Initialize core runner
-
-  //let l = term::layout::TermionLayout::new();
-  //let v = l.create_view_window();
-  //v.refresh();
-  let c = newterm::TermController::new();
+  let c = term::initialize_term_controller();
 }

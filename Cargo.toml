@@ -8,6 +8,8 @@ edition = "2018"
 
 [dependencies]
 pin-project-lite = "0.1.4"
+futures = "0.3.1"
+failure = "0.1.6"
 
 [dependencies.termion]
 version = "1.5.4"
@@ -16,3 +18,6 @@ git = "https://github.com/spwilson2/termion"
 [dependencies.tokio]
 version = "0.2.9"
 features = ["full"]
+
+[dependencies.libc]
+version = "0.2"

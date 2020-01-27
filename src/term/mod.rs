@@ -1,31 +1,52 @@
-pub mod layout;
-pub mod window;
+mod io;
+//mod screen;
+mod components;
 
-pub use self::layout::TermionLayout;
+use tokio::io::{stdout, stdin};
+use tokio::io::{Stdin, Stdout};
 
-#[derive(Debug, Copy, Clone)]
-pub struct WindowPosition {
-    pub y: u32,
-    pub x: u32,
+use crate::future::io::{AsyncWrite, AsyncRead, AsyncRawFd};
+use std::io::Write;
+
+use tokio::prelude::*;
+
+use termion::raw::IntoRawMode;
+
+use std::sync::Arc;
+use std::mem::MaybeUninit;
+
+/// This struct manages the logic for using a terminal to:
+/// - Receive keyboard input
+/// - Draw windows
+/// - Detect resize events
+pub struct TermController {
+    //input_reader: io::TermInputReader<Stdin>,
+    //input_distributor: io::InputDistributor<AsyncRawFd>,
+    write_mux: io::WriteMux<AsyncRawFd>,
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct WindowSize {
-    pub height: u32,
-    pub width: u32,
+struct MyStdout(Stdout);
+
+/// Initialize the TermController
+pub fn initialize_term_controller() -> TermController {
+    let fd = crate::future::io::RawFd(crate::future::io::STDOUT_FNUM);
+    let fd = crate::future::io::AsyncRawFd::new(fd);
+
+    TermController::new(fd)
 }
 
-pub trait Window {
-    fn get_size(&self) -> WindowSize;
-    fn move_cursor(&self, y: u32, x: u32);
-    fn move_cursor_and_clear_line(&self, line: u32);
-    fn refresh(&self);
-    fn append_str(&self, s: &str);
-    fn save_cursor_pos(&self);
-    fn restore_cursor_pos(&self);
-}
+impl TermController {
+  pub fn new(mut out: AsyncRawFd) -> Self {
+    //let reader = io::TermInputReader::new(stdin());
+    //
 
-pub trait Layout {
-    fn create_view_window(&self) -> Box<dyn Window>;
-    fn create_new_status_bar_window(&self) -> Box<dyn Window>;
+    let mut s = Self {
+     // controller: None,
+      //input_reader: reader,
+      write_mux: io::WriteMux::new(out),
+    };
+
+    //s.controller = Some(io::TermSizeController::new(writer, &s.input_reader));
+    s
+  }
 }
