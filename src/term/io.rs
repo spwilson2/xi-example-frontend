@@ -22,82 +22,21 @@ use std::cell::UnsafeCell;
 //  escape_receiver: Option<escapeSequenceReceiver>,
 //}
 //
-//const RESIZE_ESCAPE_REQ: &'static str = "";
-//const RESIZE_ESCAPE_RET: &'static str = "";
-//const REFRESH_SIZE_RATE: u64 = 10;
-//
-//fn handle_escape(size: &mut (usize,usize), es: &str) {
-//  // TODO Parse the size fromt he escape sequence
-//  if es == RESIZE_ESCAPE_RET {
-//    *size = (1,1);
-//  }
-//}
-//
-///// This controller manages detection of the terminal screen size.
-///// Screen size of terminals can be difficult to maintain. It may require
-///// asynchronous messages.
-//impl<W: AsyncWrite + Unpin> TermSizeController<W> {
-//  pub fn new<R: AsyncRead>(writer: WriteMux<W>, receiver: &InputDistributor<R>) -> Self {
-//    Self {
-//      size: Arc::from(Mutex::new((0,0))),
-//      term_writer: writer,
-//      escape_receiver: Some(receiver.sub_escape()),
-//    }
-//  }
-//
-//  pub async fn begin_loop(&mut self) {
-//
-//    // Start a task where we wait for updates.
-//    // NOTE: This task will own the escape receiver from here on out.
-//    let size = self.size.clone();
-//    let mut escape_receiver = self.escape_receiver.take().unwrap();
-//    tokio::spawn(async move {
-//      loop {
-//        let data = escape_receiver.recv().await.unwrap();
-//        let mut locked_size = size.lock().await;
-//        handle_escape(&mut locked_size, data.as_str());
-//      }
-//    });
-//
-//    loop {
-//      self.tick().await;
-//      tokio::time::delay_for(std::time::Duration::from_millis(REFRESH_SIZE_RATE)).await;
-//    }
-//  }
-//
-//  async fn tick(&mut self) {
-//    self.term_writer.write(RESIZE_ESCAPE_REQ.as_bytes()).await.unwrap();
-//  }
-//}
-
-type EscapeSequence = String;
-type EscapeSequenceReceiver = broadcast::Receiver::<EscapeSequence>;
-
-pub enum TermInputValue {
-  Text(char),
-  EscapeSequence(EscapeSequence), // TODO use events rather than the string
-}
-
-/// InputDistributor reads from the terminal input stream and translates the
-/// results into different events 
 pub struct InputDistributor<R : AsyncRead + Unpin> {
   term_reader: R,
-
-  escape_chan: (broadcast::Sender::<EscapeSequence>, EscapeSequenceReceiver),
-  text_chan: (broadcast::Sender::<String>, broadcast::Receiver::<String>),
+  chan: broadcast::Sender::<char>,
 }
 
 impl<R: AsyncRead + Unpin> InputDistributor<R> {
   pub fn new(reader: R) -> Self {
     Self {
       term_reader: reader,
-      escape_chan: broadcast::channel(10),
-      text_chan: broadcast::channel(10),
+      chan: broadcast::channel(10).0,
     }
   }
 
   /// Schedule an async read call on the given input distributor.
-  pub async fn read(&mut self) -> Result<usize, Error>{
+  pub async fn read(&mut self) -> Result<(), Error>{
       use std::str;
 
       let mut buf = [0u8;4];
@@ -105,20 +44,17 @@ impl<R: AsyncRead + Unpin> InputDistributor<R> {
       let s = str::from_utf8(&buf)?;
 
       for c in s.chars() {
-          match c {
-
-          }
+          // Ignore the error, if there were no senders it's not a problem.
+          // Someone might subscribe later.
+          let _ = self.chan.send(c);
       }
-      // TODO
-      // TODO Check if the bytes are valid ascii
-      Ok(bytes)
+      Ok(())
   }
 
-  pub fn sub_escape(&self) -> EscapeSequenceReceiver{
-    self.escape_chan.0.subscribe()
+  pub fn subscribe(&self) -> broadcast::Receiver<char> {
+      self.chan.subscribe()
   }
 }
-
 
 /***********************/
 /** Write Mux Methods **/

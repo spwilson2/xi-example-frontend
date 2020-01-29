@@ -1,6 +1,6 @@
-mod io;
+pub mod io;
 //mod screen;
-mod components;
+pub mod components;
 
 use tokio::io::{stdout, stdin};
 use tokio::io::{Stdin, Stdout};
