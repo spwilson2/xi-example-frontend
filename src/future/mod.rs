@@ -4,7 +4,11 @@ mod blocking;
 pub mod poll_fn;
 
 pub mod sync {
-    pub use tokio::sync::{broadcast, RwLock, Mutex, MutexGuard, RwLockWriteGuard, Semaphore, SemaphorePermit};
+    pub use tokio::sync::*;
+}
+pub mod runtime {
+    pub use tokio::runtime::*;
+    pub use tokio::task::JoinHandle as Promise;
 }
 pub mod io {
     pub use futures::io::{AsyncRead, AsyncWrite, AsyncReadExt, AsyncWriteExt};

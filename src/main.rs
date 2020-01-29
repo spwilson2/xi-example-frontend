@@ -4,6 +4,8 @@
     unused_variables,
     )]
 
+#[macro_use]
+extern crate pin_project_lite;
 extern crate termion;
 extern crate tokio;
 extern crate futures;
