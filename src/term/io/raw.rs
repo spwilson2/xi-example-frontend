@@ -4,9 +4,7 @@ use libc::c_int;
 
 use crate::futures::blocking;
 
-pub static STDIN_FNUM: c_int = 0;
-pub static STDOUT_FNUM: c_int = 1;
-pub static STDERR_FNUM: c_int = 1;
+pub use libc::{STDOUT_FILENO, STDIN_FILENO, STDERR_FILENO};
 
 pub struct RawFd(pub std::os::unix::io::RawFd);
 pub type AsyncRawFd = blocking::Blocking<RawFd>;

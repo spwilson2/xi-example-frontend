@@ -10,10 +10,11 @@ edition = "2018"
 pin-project-lite = "0.1.4"
 futures = "0.3.1"
 failure = "0.1.6"
+term = "0.6.1"
+unicode-segmentation = "1.6.0"
 
-[dependencies.termion]
-version = "1.5.4"
-git = "https://github.com/spwilson2/termion"
+[dependencies.xi-rope]
+version = "0.3.0"
 
 [dependencies.tokio]
 version = "0.2.9"
@@ -21,3 +22,6 @@ features = ["full"]
 
 [dependencies.libc]
 version = "0.2"
+
+[dependencies.signal-hook]
+version = "0.1.13"

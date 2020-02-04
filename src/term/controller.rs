@@ -12,8 +12,6 @@ use std::io::Write;
 
 use tokio::prelude::*;
 
-use termion::raw::IntoRawMode;
-
 use std::sync::Arc;
 use std::mem::MaybeUninit;
 
