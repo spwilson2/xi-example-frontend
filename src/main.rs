@@ -4,6 +4,10 @@
     unused_variables,
     )]
 
+extern crate chrono;
+#[macro_use]
+extern crate log;
+extern crate fern;
 extern crate xi_rope;
 extern crate unicode_segmentation as un;
 extern crate signal_hook;
@@ -297,11 +301,31 @@ fn paint_part() {
     seg.paint(&Point{x:5,y:5});
 }
 
+fn setup_logger() -> Result<(), fern::InitError> {
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{}[{}][{}] {}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                record.target(),
+                record.level(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Debug)
+        //.chain(std::io::stdout())
+        .chain(fern::log_file("output.log")?)
+        .apply()?;
+    Ok(())
+}
+
 fn main() {
+    setup_logger().unwrap();
     //paint_screen();
     paint_part();
     //test_detect_size();
 
+    warn!("Hello");
     // TODO Paint screen method
     
     println!("Hello, world!");
