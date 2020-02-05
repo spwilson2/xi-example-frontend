@@ -237,7 +237,9 @@ struct CountDrawer {
 impl Draw for CountDrawer {
     fn draw(self: &Self, window: &mut WindowSegment) {
         let (rows, cols) = window.graphs();
-        let buffer = vec!['.' as u8; rows*cols];
+        let mut buffer = vec!['.' as u8; rows*cols];
+        let data = "ᠪᠢ ᠰᠢᠯᠢ ᠢᠳᠡᠶᠦ ᠴᠢᠳᠠᠨᠠ ᠂ ᠨᠠᠳᠤᠷ ᠬᠣᠤᠷᠠᠳᠠᠢ ᠪᠢᠰᠢ ";
+        buffer.splice(..buffer.len(), data.bytes());
         let slice = std::str::from_utf8(&buffer).unwrap();
         window.rope.edit(0..buffer.len(), slice);
     }
@@ -275,11 +277,13 @@ impl WindowSegment {
                 // Gather graphemes in this row
                 match rope_cur.next_grapheme() {
                     Some(idx) => rope_cur.set(idx),
-                    None => panic!(),
+                    None => break, // Not enough graphemes - maybe fill in with spaces?
                 };
 
             }
-            //print!("{},{}", start, rope_cur.pos());
+            if start == rope_cur.pos() {
+                break;
+            }
             print!("{}", self.rope.slice(start..rope_cur.pos()));
         }
         io::stdout().flush().unwrap();
